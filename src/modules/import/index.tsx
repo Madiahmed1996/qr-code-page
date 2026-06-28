@@ -1,14 +1,16 @@
 import React, { useState } from "react";
-import * as XLSX from "xlsx";
 
 interface ParsedRow {
   [key: string]: any;
 }
 
 /**
- * Страница импорта данных. Позволяет загрузить CSV или Excel, вывести
- * предварительный просмотр и обработать дубли. В полном приложении
- * здесь происходит сопоставление колонок и выбор действия с дублями.
+ * Страница импорта данных. Теперь поддерживается только импорт CSV
+ * для упрощения и устранения уязвимостей, связанных с библиотекой xlsx.
+ * Пользователь выбирает тип данных (сотрудники, объекты, табель),
+ * загружает CSV-файл, просматривает предварительные данные и
+ * отправляет их на сервер. Обработка дублей и сопоставление
+ * колонок не реализованы.
  */
 const ImportPage: React.FC = () => {
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -20,19 +22,34 @@ const ImportPage: React.FC = () => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const json: ParsedRow[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      setRows(json);
-      setColumns(Object.keys(json[0] || {}));
-      setError(null);
-      setSummary(null);
-    } catch (err) {
-      if (err instanceof Error) setError('Ошибка чтения файла: ' + err.message);
-      else setError('Неизвестная ошибка при чтении файла');
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.csv')) {
+      try {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+        if (lines.length === 0) {
+          setError('Файл пуст');
+          return;
+        }
+        const headers = lines[0].split(',').map((h) => h.trim());
+        const data: ParsedRow[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',');
+          const row: ParsedRow = {};
+          headers.forEach((h, idx) => {
+            row[h] = values[idx] ?? '';
+          });
+          data.push(row);
+        }
+        setRows(data);
+        setColumns(headers);
+        setError(null);
+        setSummary(null);
+      } catch (err) {
+        setError('Ошибка чтения CSV: ' + (err instanceof Error ? err.message : String(err)));
+      }
+    } else {
+      setError('Поддерживается только импорт CSV');
     }
   };
 
@@ -58,8 +75,8 @@ const ImportPage: React.FC = () => {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem' }}>Импорт Excel/CSV</h1>
-      <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} />
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem' }}>Импорт CSV</h1>
+      <input type="file" accept=".csv" onChange={handleFileChange} />
       <div style={{ marginTop: '0.5rem' }}>
         <label>
           Тип данных:
