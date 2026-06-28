@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Run tests
+        run: npm test -- --run
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+      - name: Audit
+        run: npm audit --audit-level=high
+      - name: Pack build
+        if: success()
+        run: |
+          mkdir -p artifact
+          # Copy built frontend
+          cp -r dist artifact/dist
+          # Copy server code
+          cp -r server artifact/server
+          # Copy database (if exists)
+          if [ -d data ]; then cp -r data artifact/data; fi
+          cp package.json artifact/package.json
+          if [ -f package-lock.json ]; then cp package-lock.json artifact/package-lock.json; fi
+          zip -r build.zip artifact
+      - name: Upload artifact
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifact
+          path: build.zip
