@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
 
 /**
- * Страница экспорта. Позволяет выбрать набор данных (сотрудники, объекты,
- * табель или дубли) и выгрузить его в Excel. Использует API /api/export
- * для получения данных в JSON и библиотеку xlsx для генерации файла.
+ * Страница экспорта данных. Вместо уязвимой библиотеки xlsx
+ * используется простая генерация CSV. Пользователь выбирает набор
+ * данных, и файл загружается как .csv. При желании его можно
+ * открыть в Excel или других таблицах.
  */
 const ExportPage: React.FC = () => {
   const [type, setType] = useState<string>('employees');
@@ -57,11 +57,31 @@ const ExportPage: React.FC = () => {
           CreatedAt: d.created_at,
         }));
       }
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
-      const filename = `${type}.xlsx`;
-      XLSX.writeFile(workbook, filename);
+      if (!rows.length) {
+        alert('Нет данных для экспорта');
+        return;
+      }
+      const headers = Object.keys(rows[0]);
+      const csvLines: string[] = [];
+      csvLines.push(headers.join(','));
+      for (const row of rows) {
+        const values = headers.map((h) => {
+          const v = row[h] ?? '';
+          const s = String(v).replace(/"/g, '""');
+          return `"${s}"`;
+        });
+        csvLines.push(values.join(','));
+      }
+      const csvString = csvLines.join('\n');
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${type}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
       alert('Не удалось экспортировать данные');
