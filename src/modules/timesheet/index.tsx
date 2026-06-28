@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import * as XLSX from "xlsx";
 
 interface TimesheetCell {
   present: boolean;
@@ -99,24 +98,37 @@ const TimesheetPage: React.FC = () => {
     setSheet(newSheet);
   };
 
-  const exportToExcel = async () => {
+  const exportToCsv = async () => {
     try {
       const res = await fetch('/api/export?type=timesheet');
       const json = await res.json();
       const empMap: { [id: number]: string } = {};
-      employees.forEach((emp) => (empMap[emp.id] = emp.name));
-      const exportRows = json.map((row: any) => ({
-        Employee: empMap[row.employee_id] || row.employee_id,
-        Date: row.date,
-        Hours: row.hours,
-        Overtime: row.overtime,
-        Status: row.status,
-        ObjectId: row.object_id,
-      }));
-      const worksheet = XLSX.utils.json_to_sheet(exportRows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Timesheet');
-      XLSX.writeFile(workbook, 'timesheet.xlsx');
+      employees.forEach((emp) => { empMap[emp.id] = emp.name; });
+      const rows: any[][] = [];
+      rows.push(['Сотрудник', 'Дата', 'Часы', 'Переработка', 'Статус', 'ObjectId']);
+      json.forEach((row: any) => {
+        rows.push([
+          empMap[row.employee_id] || row.employee_id,
+          row.date,
+          row.hours,
+          row.overtime,
+          row.status,
+          row.object_id === null ? '' : row.object_id,
+        ]);
+      });
+      const csvContent = rows.map((r) => r.map((v) => {
+        const val = (v ?? '').toString().replace(/"/g, '""');
+        return `"${val}"`;
+      }).join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'timesheet.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode!.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Ошибка экспорта', err);
     }
@@ -168,7 +180,7 @@ const TimesheetPage: React.FC = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button onClick={markAllPresent} style={{ backgroundColor: '#16a34a', color: 'white', padding: '0.5rem 1rem', border: 'none', borderRadius: '4px' }}>Отметить всех присутствующими</button>
-          <button onClick={exportToExcel} style={{ backgroundColor: '#2563eb', color: 'white', padding: '0.5rem 1rem', border: 'none', borderRadius: '4px' }}>Экспорт табеля</button>
+          <button onClick={exportToCsv} style={{ backgroundColor: '#2563eb', color: 'white', padding: '0.5rem 1rem', border: 'none', borderRadius: '4px' }}>Экспорт табеля</button>
         </div>
       </div>
       <div style={{ overflowX: 'auto' }}>
