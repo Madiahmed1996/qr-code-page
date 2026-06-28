@@ -1,7 +1,18 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import App from '../src/App';
+
+// Стубируем fetch в тестовой среде: возвращаем пустой массив,
+// чтобы избежать ошибок "Invalid URL" при обращении к относительным путям.
+beforeAll(() => {
+  global.fetch = vi.fn(() =>
+    Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve([]),
+    })
+  ) as any;
+});
 
 describe('App routing', () => {
   it('renders dashboard by default', () => {
@@ -10,8 +21,6 @@ describe('App routing', () => {
         <App />
       </MemoryRouter>
     );
-    // Ищем заголовок первого уровня с нужным текстом, чтобы избежать
-    // коллизий из других компонентов.
     const heading = screen.getByRole('heading', { name: /Дашборд/i });
     expect(heading).toBeTruthy();
   });
