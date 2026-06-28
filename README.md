@@ -1,0 +1,3 @@
+# madi-manager
+
+Project placeholder
